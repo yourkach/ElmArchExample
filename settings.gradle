@@ -1,0 +1,3 @@
+rootProject.name = "Elm Example"
+include ':app'
+include ':elm_core'
