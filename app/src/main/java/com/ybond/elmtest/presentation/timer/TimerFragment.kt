@@ -65,7 +65,8 @@ class TimerFragment : Fragment(R.layout.fragment_timer) {
                 }
                 is TimeState.Running -> {
                     restartUpdateTimeJob(timeState.startTimestampMillis)
-                    timeState.startTimestampMillis.formatAsTimeText()
+                    val elapsedMillis = System.currentTimeMillis() - timeState.startTimestampMillis
+                    elapsedMillis.formatAsTimeText()
                 }
                 TimeState.Initial -> {
                     stopUpdateTimeJob()
@@ -79,9 +80,11 @@ class TimerFragment : Fragment(R.layout.fragment_timer) {
     private fun restartUpdateTimeJob(timerStartMillis: Long) {
         updateTimeJob?.cancel()
         updateTimeJob = lifecycleScope.launch {
-            val elapsedMillis = System.currentTimeMillis() - timerStartMillis
-            timerTextView?.updateText(text = elapsedMillis.formatAsTimeText())
-            delay(timeMillis = 10)
+            while (true) {
+                val elapsedMillis = System.currentTimeMillis() - timerStartMillis
+                timerTextView?.updateText(text = elapsedMillis.formatAsTimeText())
+                delay(timeMillis = 10)
+            }
         }
     }
 
@@ -90,13 +93,13 @@ class TimerFragment : Fragment(R.layout.fragment_timer) {
     }
 }
 
-val twoZeroDigitsFormat = DecimalFormat("##")
+val twoZeroDigitsFormat = DecimalFormat("00")
 val threeDigitsFormat = DecimalFormat("000")
 fun Long.formatAsTimeText(): String {
     val millis = this % 1000
     val seconds = this / 1000 % 60
     val minutes = this / 1000 / 60
-    return "$minutes:${twoZeroDigitsFormat.format(seconds)}.$millis"
+    return "$minutes:${twoZeroDigitsFormat.format(seconds)}.${threeDigitsFormat.format(millis)}"
 }
 
 fun View.updateVisibility(isVisible: Boolean) {
