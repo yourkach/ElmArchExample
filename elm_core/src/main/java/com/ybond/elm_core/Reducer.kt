@@ -14,6 +14,10 @@ interface Reducer<TState, TUiEvent,TCommand, TInternalEvent,  TEffect> {
 
 }
 
+interface EventReducer<TState, TEvent, TCommand, TEffect> {
+    fun reduce(state: TState, event: TEvent): ReducerResult<TState, TEffect, TCommand>
+}
+
 data class ReducerResult<TState, TEffect, TCommand>(
     val state: TState,
     val effects: List<TEffect>,

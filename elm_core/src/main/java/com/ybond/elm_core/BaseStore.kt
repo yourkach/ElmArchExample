@@ -9,16 +9,25 @@ import kotlinx.coroutines.flow.collect
 import kotlin.coroutines.CoroutineContext
 
 abstract class BaseStore<TState, TUiEvent, TCommand, TInternalEvent, TEffect>(
+    private val actor: Actor<TCommand, TInternalEvent>,
+    private val reducer: Reducer<TState, TUiEvent, TCommand, TInternalEvent, TEffect>,
     initialState: TState,
-    dispatcher: CoroutineDispatcher = Dispatchers.Default
+    dispatcher: CoroutineDispatcher = Dispatchers.Default,
+    private val logError: ((context: CoroutineContext, throwable: Throwable) -> Unit)? = null
 ) : InternalStore<TState, TUiEvent, TCommand, TInternalEvent, TEffect> {
 
     constructor(
+        actor: Actor<TCommand, TInternalEvent>,
+        reducer: Reducer<TState, TUiEvent, TCommand, TInternalEvent, TEffect>,
         createInitialState: () -> TState,
-        dispatcher: CoroutineDispatcher = Dispatchers.Default
+        dispatcher: CoroutineDispatcher = Dispatchers.Default,
+        onError: ((context: CoroutineContext, throwable: Throwable) -> Unit)? = null
     ) : this(
+        actor = actor,
+        reducer = reducer,
         initialState = createInitialState(),
-        dispatcher = dispatcher
+        dispatcher = dispatcher,
+        logError = onError
     )
 
     private val coroutineScope: CoroutineScope = CoroutineScope(
@@ -27,17 +36,15 @@ abstract class BaseStore<TState, TUiEvent, TCommand, TInternalEvent, TEffect>(
 
     private val runningCommandJobsMap = mutableMapOf<String, Job>()
 
-    protected abstract val actor: Actor<TCommand, TInternalEvent>
-    protected abstract val reducer: Reducer<TState, TUiEvent, TCommand, TInternalEvent, TEffect>
 
     private val mutableEffectsFlow: MutableSharedFlow<TEffect> = MutableSharedFlow()
     private val mutableStateFlow: MutableStateFlow<TState> = MutableStateFlow(initialState)
 
     private val reducerResultsFlow = MutableSharedFlow<ReducerResult<TState, TEffect, TCommand>>()
 
-    override val effectsFlow: Flow<TEffect>
+    final override val effectsFlow: Flow<TEffect>
         get() = mutableEffectsFlow
-    override val stateFlow: Flow<TState>
+    final override val stateFlow: Flow<TState>
         get() = mutableStateFlow
 
     private val currentState: TState
@@ -49,7 +56,7 @@ abstract class BaseStore<TState, TUiEvent, TCommand, TInternalEvent, TEffect>(
         }
     }
 
-    override fun obtainEvent(uiEvent: TUiEvent) {
+    final override fun obtainEvent(uiEvent: TUiEvent) {
         uiEvent.reduceWith(reducer::reduceByUiEvent)
     }
 
@@ -85,15 +92,26 @@ abstract class BaseStore<TState, TUiEvent, TCommand, TInternalEvent, TEffect>(
         }
     }
 
-    override fun dispose() {
+    final override fun dispose() {
         onDispose()
         coroutineScope.cancel()
     }
 
     protected open fun onDispose() {}
 
-    protected open fun onCoroutineError(context: CoroutineContext, throwable: Throwable) {
-        Log.e(this::class.java.simpleName, "An error occurred", throwable)
+    /** Maps throwable received by [Actor.processCommand] execution to [TInternalEvent]
+     *
+     * @return - [TInternalEvent] if need to handle error
+     * - null if need to ignore error
+     * */
+    open fun Throwable.toInternalEvent(): TInternalEvent? = null
+
+    private fun onCoroutineError(context: CoroutineContext, throwable: Throwable) {
+        if (logError?.invoke(context, throwable) != Unit) {
+            Log.e(this::class.java.simpleName, "An error occurred", throwable)
+        }
+        val internalEvent = throwable.toInternalEvent() ?: return
+        obtainInternalEvent(internalEvent)
     }
 
 }
