@@ -60,7 +60,7 @@ class TimerReducer :
                 return ReducerResult(
                     state = state.copy(
                         timeState = TimeState.Paused(timeElapsedMillis = event.timeElapsedMillis),
-                        toggleButtonState = ToggleTimerButtonState.Pause,
+                        toggleButtonState = ToggleTimerButtonState.Start,
                         isStopButtonVisible = true
                     ),
                     effects = emptyList(),
